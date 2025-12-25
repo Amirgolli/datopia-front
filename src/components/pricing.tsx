@@ -1,0 +1,156 @@
+"use client";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
+import { CircleCheck } from "lucide-react";
+import { useState } from "react";
+
+// تعریف نوع برای ویژگی‌ها
+interface Feature {
+  title: string;
+  titleY?: string; // titleY اختیاری است
+}
+
+interface Plan {
+  name: string;
+  price: string;
+  year: string;
+  isPopular?: boolean;
+  isRecommended?: boolean;
+  description: string;
+  features: Feature[];
+  buttonText: string;
+}
+
+const plans: Plan[] = [
+  {
+    name: "شروع‌کننده",
+    price: "۱‍.۸۰۰.۰۰۰ تومان ",
+    year: "۱۷.۲۸۰.۰۰۰تومان ",
+    isPopular: true,
+    description: "مناسب برای کسب‌وکارهای کوچک و شروع‌کننده",
+    features: [
+      { title: "تا ۲۵۰ پیام", titleY: "تا ۳۰۰۰ پیام" },
+      { title: "۷ روز ذخیره سازی فایل‌ها" },
+    ],
+    buttonText: "ثبت نام",
+  },
+  {
+    name: "حرفه‌ای",
+    price: "۴.۲۰۰.۰۰۰ تومان ",
+    year: "۴۰.۳۲۰.۰۰۰تومان ",
+    isRecommended: false,
+    description: "مناسب برای کسب‌وکارهای در حال رشد و متوسط",
+    features: [
+      { title: "تا ۱۰۰۰ پیام", titleY: "تا ۱۲۰۰۰ پیام" },
+      { title: "۱۰ روز ذخیره سازی فایل‌ها" },
+    ],
+    buttonText: "ثبت نام",
+  },
+  {
+    name: "ویژه",
+    price: "سفارشی ",
+    year: "سفارشی ",
+    isRecommended: false,
+    description: "راه‌حل سفارشی برای سازمان‌های بزرگ",
+    features: [
+      { title: "بدون محدودیت پیام" },
+      { title: "بدون محدودیت در نگه داری فایل‌ها" },
+    ],
+    buttonText: "تماس با فروش",
+  },
+];
+
+const Pricing = () => {
+  const [selectedBillingPeriod, setSelectedBillingPeriod] = useState<
+    "monthly" | "yearly"
+  >("monthly");
+
+  return (
+    <div
+      id="pricing"
+      className="flex flex-col items-center justify-center py-12 xs:py-20 px-6"
+    >
+      <h1 className="text-3xl xs:text-4xl md:text-5xl font-bold text-center tracking-tight">
+        قیمت گذاری
+      </h1>
+      <Tabs
+        value={selectedBillingPeriod}
+        onValueChange={(value) =>
+          setSelectedBillingPeriod(value as "monthly" | "yearly")
+        }
+        className="mt-8"
+      >
+        <TabsList className="h-11 " dir="rtl">
+          <TabsTrigger
+            value="monthly"
+            className="py-1.5 text-[18px] cursor-pointer font-semibold"
+          >
+            ماهانه
+          </TabsTrigger>
+          <TabsTrigger
+            value="yearly"
+            className="py-1.5 text-[18px] cursor-pointer font-semibold "
+          >
+            سالانه
+          </TabsTrigger>
+          <span dir="rtl" className="text-[#585858] text-[18px] font-semibold">
+            ( ۲۰ درصد تخفیف)
+          </span>
+        </TabsList>
+      </Tabs>
+      <div className="mt-12 max-w-screen-lg mx-auto grid grid-cols-1 lg:grid-cols-3 items-center gap-8">
+        {plans.map((plan) => (
+          <div
+            key={plan.name}
+            className={cn(
+              "relative rounded-xl p-6 bg-background/50",
+              plan.isPopular
+                ? "border-2 border-black py-10 "
+                : "border border-gray-200"
+            )}
+          >
+            {plan.isPopular && (
+              <Badge className="absolute top-0 right-1/2 translate-x-1/2 -translate-y-1/2">
+                محبوب‌ترین
+              </Badge>
+            )}
+            <h3 className="text-lg font-medium">{plan.name}</h3>
+            <p className="mt-2 text-[25px] text-[#1668E3] font-bold">
+              {selectedBillingPeriod === "monthly" ? plan.price : plan.year}
+              <span className="ml-1.5 text-sm text-muted-foreground font-normal">
+                {selectedBillingPeriod === "monthly" ? "/ماهانه" : "/سالانه"}
+              </span>
+            </p>
+            <p className="mt-4 font-medium text-muted-foreground">
+              {plan.description}
+            </p>
+            <Button
+              variant={plan.isPopular ? "default" : "outline"}
+              size="lg"
+              className="w-full mt-6 text-base"
+            >
+              {plan.buttonText}
+            </Button>
+            <Separator className="my-8" />
+            <ul className="space-y-2">
+              {plan.features.map((feature) => (
+                <li key={feature.title} className="flex items-start gap-1.5">
+                  <CircleCheck className="h-4 w-4 mt-1 text-green-600" />
+                  {selectedBillingPeriod === "monthly" || !feature.titleY
+                    ? feature.title
+                    : feature.titleY}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default Pricing;

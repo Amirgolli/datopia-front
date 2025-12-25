@@ -1,0 +1,109 @@
+name: datax-deploy-frontend-prod
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "public/**"
+      - ".github/workflows/datax-deploy-frontend-prod.yml"
+      - "docker-compose-prod.yml"
+      - "Dockerfile"
+
+env:
+  IMAGE_NAME: datax-frontend-prod
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Copy files to VPS
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.PROD_VPS_HOST }}
+          username: ${{ secrets.PROD_VPS_USERNAME }}
+          port: 32222
+          key: ${{ secrets.PROD_VPS_PRIVATE_KEY }}
+          source: "docker-compose-prod.yml"
+          target: "/home/datax-frontend"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          # NOTE: Do not set NODE_ENV=development for production builds
+          build-args: |
+            BACKEND_URL=${{ secrets.PROD_BACKEND_URL }}
+          no-cache: true
+
+
+  deploy:
+    needs: build_and_push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.PROD_VPS_HOST }}
+          username: ${{ secrets.PROD_VPS_USERNAME }}
+          port: 32222
+          key: ${{ secrets.PROD_VPS_PRIVATE_KEY }}
+          script: |
+            cd /home/datax-frontend
+
+            # Docker login
+            echo "🔍 Logging in to Docker Hub..."
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin || { echo "ERROR: Docker Hub login failed";  }
+            echo "✅ Docker Hub login successful"
+
+            # Ensure network exists
+            echo "🔍 Checking network datax_prod-net..."
+            docker network inspect datax_prod-net >/dev/null 2>&1 || { echo "WARNING: No network found"; }
+            echo "✅ Network exists or created"
+
+            # Stop and remove old container
+            echo "🔍 Stopping and removing old container..."
+            docker rm -f datax-frontend-prod || { echo "WARNING: No old container to remove"; }
+            echo "✅ Old container removed"
+
+            dangling=$(docker images ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }} -f "dangling=true" -q)
+            [ -n "$dangling" ] && docker rmi $dangling
+            echo "✅ dangling images cleaned up"
+
+            # Deploy frontend
+            
+            # Pull image
+            echo "🔍 Pulling Docker image..."
+            docker compose -f ./docker-compose-prod.yml pull || { echo "ERROR: Failed to pull image";  }
+            echo "✅ Image pulled successfully"
+
+            # Start container
+            echo "🔍 Starting container..."
+            docker compose -f ./docker-compose-prod.yml up -d --no-build || { echo "ERROR: Failed to start container";  }
+            echo "✅ Container started"
+
+            # Wait & Check
+            echo "🔍 Waiting for container to stabilize..."
+            sleep 10
+            echo "🔍 Checking container status..."
+            docker ps -a | grep datax-frontend-prod || { echo "ERROR: Container datax-frontend-prod not running";  }
+            echo "✅ Container is running"
+            echo "✅ Deployment successful! Visit: ${{ secrets.PROD_VPS_URL }}"
