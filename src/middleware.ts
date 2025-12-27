@@ -10,9 +10,6 @@ const publicPaths = [
   "/",
   "/checkPassword",
   "/waiting-list",
-  "/chat",
-  "/knowledge-base",
-  "/connectors"
 ];
 
 export function middleware(request: NextRequest) {
