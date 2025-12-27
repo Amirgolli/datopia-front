@@ -2,9 +2,9 @@
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
-import { Logo } from "./logo";
 import { NavMenu } from "./nav-menu";
 import { useState } from "react";
+import Logo from "../../../public/svg/Logo";
 
 export const NavigationSheet = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -19,7 +19,7 @@ export const NavigationSheet = () => {
       <SheetContent className="h-[354px]">
         <div className="flex flex-col ">
           <div className="flex items-center justify-between mb-6">
-            <Logo />
+            <Logo height={30} width={30} />
             <Button
               variant="ghost"
               size="icon"
