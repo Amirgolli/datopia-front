@@ -1,4 +1,4 @@
-name: datax-deploy-frontend-prod
+name: datopia-deploy-frontend-
 
 on:
   push:
@@ -7,12 +7,12 @@ on:
     paths:
       - "src/**"
       - "public/**"
-      - ".github/workflows/datax-deploy-frontend-prod.yml"
-      - "docker-compose-prod.yml"
+      - ".github/workflows/datopia-deploy-frontend.yml"
+      - "docker-compose-dev.yml"
       - "Dockerfile"
 
 env:
-  IMAGE_NAME: datax-frontend-prod
+  IMAGE_NAME: datopia-frontend-dev
 
 jobs:
   build_and_push:
@@ -22,15 +22,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Verify SSH Args
+        run: |
+          echo "Host starts with: $(echo "${{ secrets.VPS_HOST }}" | head -c 4)..."
+          echo "Username starts with: $(echo "${{ secrets.VPS_USERNAME }}" | head -c 2)..."
+
       - name: Copy files to VPS
         uses: appleboy/scp-action@master
         with:
-          host: ${{ secrets.PROD_VPS_HOST }}
-          username: ${{ secrets.PROD_VPS_USERNAME }}
-          port: 32222
-          key: ${{ secrets.PROD_VPS_PRIVATE_KEY }}
-          source: "docker-compose-prod.yml"
-          target: "/home/datax-frontend"
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          port: 22
+          password: ${{ secrets.VPS_PASSWORD }}
+          source: "docker-compose-dev.yml"
+          target: "/home/datopia-frontend-dev"
+
+      #      - name: Create .env file for build vars
+      #        run: |
+      #          echo "NEXT_PUBLIC_API_BASE_URL=${{ secrets.BACKEND_URL }}" > .env
+      #          echo "FRONTEND_URL=${{ secrets.FRONTEND_URL }}" >> .env
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -42,17 +52,15 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-          # NOTE: Do not set NODE_ENV=development for production builds
           build-args: |
-            BACKEND_URL=${{ secrets.PROD_BACKEND_URL }}
+            BACKEND_URL=${{ secrets.BACKEND_URL }}
           no-cache: true
-
 
   deploy:
     needs: build_and_push
@@ -61,27 +69,23 @@ jobs:
     steps:
       - name: Deploy to VPS
         uses: appleboy/ssh-action@master
+
         with:
-          host: ${{ secrets.PROD_VPS_HOST }}
-          username: ${{ secrets.PROD_VPS_USERNAME }}
-          port: 32222
-          key: ${{ secrets.PROD_VPS_PRIVATE_KEY }}
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          port: 22
+          password: ${{ secrets.VPS_PASSWORD }}
           script: |
-            cd /home/datax-frontend
+            cd /home/datopia-frontend-dev
 
             # Docker login
             echo "🔍 Logging in to Docker Hub..."
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin || { echo "ERROR: Docker Hub login failed";  }
             echo "✅ Docker Hub login successful"
 
-            # Ensure network exists
-            echo "🔍 Checking network datax_prod-net..."
-            docker network inspect datax_prod-net >/dev/null 2>&1 || { echo "WARNING: No network found"; }
-            echo "✅ Network exists or created"
-
             # Stop and remove old container
             echo "🔍 Stopping and removing old container..."
-            docker rm -f datax-frontend-prod || { echo "WARNING: No old container to remove"; }
+            docker rm -f datopia-frontend-dev || { echo "WARNING: No old container to remove"; }
             echo "✅ Old container removed"
 
             dangling=$(docker images ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }} -f "dangling=true" -q)
@@ -89,21 +93,21 @@ jobs:
             echo "✅ dangling images cleaned up"
 
             # Deploy frontend
-            
+
             # Pull image
             echo "🔍 Pulling Docker image..."
-            docker compose -f ./docker-compose-prod.yml pull || { echo "ERROR: Failed to pull image";  }
+            docker compose -f ./docker-compose-dev.yml pull || { echo "ERROR: Failed to pull image";  }
             echo "✅ Image pulled successfully"
 
             # Start container
             echo "🔍 Starting container..."
-            docker compose -f ./docker-compose-prod.yml up -d --no-build || { echo "ERROR: Failed to start container";  }
+            docker compose -f ./docker-compose-dev.yml up -d --no-build || { echo "ERROR: Failed to start container";  }
             echo "✅ Container started"
 
             # Wait & Check
             echo "🔍 Waiting for container to stabilize..."
             sleep 10
             echo "🔍 Checking container status..."
-            docker ps -a | grep datax-frontend-prod || { echo "ERROR: Container datax-frontend-prod not running";  }
+            docker ps -a | grep datopia-frontend-dev || { echo "ERROR: Container datopia-frontend-dev not running";  }
             echo "✅ Container is running"
-            echo "✅ Deployment successful! Visit: ${{ secrets.PROD_VPS_URL }}"
+            echo "✅ Deployment successful! Visit: ${{ secrets.VPS_URL }}"

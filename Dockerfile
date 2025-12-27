@@ -7,6 +7,7 @@ RUN npm install -g npm@latest
 RUN npm ci --loglevel=verbose
 COPY . .
 
+
 # Build-time args
 #          there is bug in building react app for production https://nextjs.org/docs/messages/no-document-import-in-page
 #ARG NODE_ENV
