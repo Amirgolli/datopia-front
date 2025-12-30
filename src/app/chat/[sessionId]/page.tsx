@@ -16,6 +16,7 @@ import rehypeHighlight from "rehype-highlight";
 import Cookies from "js-cookie";
 import { Button } from "@/components/Button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import Logo from "../../../../public/svg/Logo";
 
 interface Message {
   role: "user" | "assistant";
@@ -209,10 +210,8 @@ export default function ChatPage() {
 
         const data = await response.json();
         const assistantContent =
-          data.content ||
-          data.response ||
-          data.message ||
-          "جوابی از سمت ایجنت نیومد!";
+          data.model_response ?? "جوابی از سمت ایجنت نیومد!";
+
         const words = assistantContent.split(" ");
         let currentMessage = "";
         let wordIndex = 0;
@@ -263,15 +262,13 @@ export default function ChatPage() {
   );
 
   useEffect(() => {
-    if (manuallyTriggeredRef.current) return;
-    if (
-      messages.length > 0 &&
-      messages[messages.length - 1].role === "user" &&
-      !isLoading
-    ) {
-      handleGetResponse(messages[messages.length - 1].content);
+    if (messages.length > 0 && !isLoading && !manuallyTriggeredRef.current) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.role === "user") {
+        handleGetResponse(lastMsg.content);
+      }
     }
-  }, [messages, isLoading, handleGetResponse]);
+  }, [messages, handleGetResponse, isLoading]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -384,12 +381,12 @@ export default function ChatPage() {
         throw new Error("No auth token found. Please log in again.");
       }
 
-      console.log("Sending to /edit_message:", {
+      console.log("Sending to /chat/edit_message:", {
         session_id: sessionId,
         message_index: index,
         new_content: trimmedInput,
       });
-      const response = await fetch(`${apiBaseUrl}/edit_message`, {
+      const response = await fetch(`${apiBaseUrl}/chat/edit_message`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -415,6 +412,10 @@ export default function ChatPage() {
         newMessages[newMessages.length - 1].role === "assistant"
       ) {
         const assistantContent = newMessages[newMessages.length - 1].content;
+        if (typeof assistantContent !== "string") {
+          throw new Error("Assistant response is not text");
+        }
+
         const words = assistantContent.split(" ");
         let currentMessage = "";
         let wordIndex = 0;
@@ -514,7 +515,7 @@ export default function ChatPage() {
           {messages.map((msg, index) => (
             <div key={index} className="flex flex-col text-right">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-slate-200 text-xs font-medium">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center  text-xs font-medium">
                   {msg.role === "user" ? (
                     <svg
                       width="36"
@@ -525,7 +526,7 @@ export default function ChatPage() {
                     >
                       <path
                         d="M0 18C0 8.05888 8.05888 0 18 0C27.9411 0 36 8.05888 36 18C36 27.9411 27.9411 36 18 36C8.05888 36 0 27.9411 0 18Z"
-                        fill="#18181B"
+                        fill="#747375"
                       />
                       <path
                         fillRule="evenodd"
@@ -535,24 +536,7 @@ export default function ChatPage() {
                       />
                     </svg>
                   ) : (
-                    <svg
-                      width="36"
-                      height="36"
-                      viewBox="0 0 36 36"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M0 18C0 8.05888 8.05888 0 18 0C27.9411 0 36 8.05888 36 18C36 27.9411 27.9411 36 18 36C8.05888 36 0 27.9411 0 18Z"
-                        fill="black"
-                      />
-                      <path
-                        fillRule="evenodd"
-                        clipRule="evenodd"
-                        d="M19.0633 8C22.4903 8.47141 25.0738 10.1938 26.8137 13.1669C28.454 16.4988 28.3932 19.8016 26.6314 23.0753C24.8208 25.952 22.2171 27.573 18.8202 27.9383C17.4423 27.9383 16.0645 27.9383 14.6866 27.9383C14.6866 25.75 14.6866 23.5616 14.6866 21.3733C16.9056 21.3934 19.1142 21.3731 21.3125 21.3125C21.3125 19.0836 21.3125 16.8547 21.3125 14.6258C19.0836 14.6258 16.8547 14.6258 14.6258 14.6258C14.5652 16.8241 14.5449 19.0327 14.5651 21.2517C12.3767 21.2517 10.1884 21.2517 8 21.2517C8 16.8344 8 12.4172 8 8C11.6878 8 15.3755 8 19.0633 8Z"
-                        fill="white"
-                      />
-                    </svg>
+                    <Logo height={80} width={80} />
                   )}
                 </div>
                 <span className="text-sm font-semibold">

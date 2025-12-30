@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "Datopia",
     locale: "fa_IR",
-    url: "https://dataxai.ir/",
+    url: "http://app.datopia.nafisai.com",
     title: "Datopia – چت‌بات هوش مصنوعی برای آنالیز داده‌ها",
     description:
       "با Datopia داده‌های خود را با کمک هوش مصنوعی تحلیل کنید و تصمیم‌های هوشمندانه‌تری بگیرید.",
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
   authors: [
     {
       name: "Datopia Team",
-      url: "https://dataxai.ir/",
+      url: "http://app.datopia.nafisai.com",
     },
   ],
   creator: "Datopia Team",
