@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Check,
   Square,
+  Download,
 } from "lucide-react";
 import { useEffect, useRef, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
@@ -17,11 +18,13 @@ import Cookies from "js-cookie";
 import { Button } from "@/components/Button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import Logo from "../../../../public/svg/Logo";
+import UserA from "../../../../public/svg/userA";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
 }
+
 const AGENT_STATUS_TEXTS = [
   // ⏳ صمیمی و انسانی
   "یه لحظه ⏳",
@@ -50,6 +53,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [copiedCodeIndex, setCopiedCodeIndex] = useState<number | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editInput, setEditInput] = useState("");
   const [user, setUser] = useState("شما");
@@ -98,6 +102,14 @@ export default function ChatPage() {
       setCredit(null);
       setIsCreditZeroModalOpen(false);
     }
+  };
+  const handleDownloadImage = (base64: string, filename = "image.png") => {
+    const link = document.createElement("a");
+    link.href = `data:image/png;base64,${base64}`;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   useEffect(() => {
@@ -209,10 +221,13 @@ export default function ChatPage() {
         }
 
         const data = await response.json();
-        const assistantContent =
-          data.model_response ?? "جوابی از سمت ایجنت نیومد!";
 
-        const words = assistantContent.split(" ");
+        // Store the entire data as JSON string in content
+        const assistantContent = JSON.stringify(data);
+
+        // For streaming, use model_response if available
+        const streamText = data.model_response || "";
+        const words = streamText.split(" ");
         let currentMessage = "";
         let wordIndex = 0;
 
@@ -226,7 +241,13 @@ export default function ChatPage() {
             currentMessage += (wordIndex > 0 ? " " : "") + words[wordIndex];
             setMessages(() => [
               ...baseMessages,
-              { role: "assistant", content: currentMessage } as Message,
+              {
+                role: "assistant",
+                content: JSON.stringify({
+                  ...data,
+                  model_response: currentMessage,
+                }),
+              } as Message,
             ]);
             wordIndex++;
           } else {
@@ -337,7 +358,11 @@ export default function ChatPage() {
     localStorage.setItem(`chat_${sessionId}`, JSON.stringify(messages));
   };
 
-  const handleCopy = async (text: string, index: number) => {
+  const handleCopy = async (
+    text: string,
+    index: number,
+    isCode: boolean = false
+  ) => {
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(text);
@@ -352,8 +377,13 @@ export default function ChatPage() {
         document.body.removeChild(ta);
       }
 
-      setCopiedIndex(index);
-      setTimeout(() => setCopiedIndex(null), 1500);
+      if (isCode) {
+        setCopiedCodeIndex(index);
+        setTimeout(() => setCopiedCodeIndex(null), 1500);
+      } else {
+        setCopiedIndex(index);
+        setTimeout(() => setCopiedIndex(null), 1500);
+      }
     } catch (err) {
       console.error("Copy failed", err);
     }
@@ -411,12 +441,21 @@ export default function ChatPage() {
         newMessages.length > 0 &&
         newMessages[newMessages.length - 1].role === "assistant"
       ) {
-        const assistantContent = newMessages[newMessages.length - 1].content;
-        if (typeof assistantContent !== "string") {
+        const assistantData = newMessages[newMessages.length - 1].content;
+        if (typeof assistantData !== "string") {
           throw new Error("Assistant response is not text");
         }
 
-        const words = assistantContent.split(" ");
+        // Parse the JSON content
+        let parsedData;
+        try {
+          parsedData = JSON.parse(assistantData);
+        } catch {
+          throw new Error("Invalid JSON in assistant response");
+        }
+
+        const streamText = parsedData.model_response || "";
+        const words = streamText.split(" ");
         let currentMessage = "";
         let wordIndex = 0;
         const baseMessages = newMessages.slice(0, -1);
@@ -431,7 +470,13 @@ export default function ChatPage() {
             currentMessage += (wordIndex > 0 ? " " : "") + words[wordIndex];
             setMessages([
               ...baseMessages,
-              { role: "assistant", content: currentMessage },
+              {
+                role: "assistant",
+                content: JSON.stringify({
+                  ...parsedData,
+                  model_response: currentMessage,
+                }),
+              },
             ]);
             wordIndex++;
           } else {
@@ -472,39 +517,6 @@ export default function ChatPage() {
     <main className="min-h-screen w-full flex flex-col items-center justify-between bg-background">
       <div className="h-12 w-full fixed top-0 z-50 bg-white border-b md:hidden flex items-center  px-6">
         <SidebarTrigger />
-        <svg
-          width="22"
-          height="22"
-          viewBox="0 0 22 22"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className="border rounded-sm py-0.5 px-1"
-        >
-          <path
-            d="M18.0001 4.99982C17.7401 4.99982 17.4901 4.89982 17.2901 4.70982C16.9001 4.31982 16.9001 3.68982 17.2901 3.29982L20.2901 0.299824C20.6801 -0.0901758 21.3101 -0.0901758 21.7001 0.299824C22.0901 0.689824 22.0901 1.31982 21.7001 1.70982L18.7001 4.70982C18.5001 4.90982 18.2501 4.99982 17.9901 4.99982H18.0001Z"
-            fill="#71717A"
-          />
-          <path
-            d="M1.00006 21.9998C0.740059 21.9998 0.490059 21.8998 0.290059 21.7098C-0.0999414 21.3198 -0.0999414 20.6898 0.290059 20.2998L3.29006 17.2998C3.68006 16.9098 4.31006 16.9098 4.70006 17.2998C5.09006 17.6898 5.09006 18.3198 4.70006 18.7098L1.70006 21.7098C1.50006 21.9098 1.25006 21.9998 0.990059 21.9998H1.00006Z"
-            fill="#71717A"
-          />
-          <path
-            d="M7.00006 20.9998C6.13006 20.9998 5.26006 20.6698 4.59006 19.9998L1.99006 17.3998C1.34006 16.7498 0.990059 15.8998 0.990059 14.9898C0.990059 14.0798 1.35006 13.2298 1.99006 12.5898L4.29006 10.2898C4.68006 9.89982 5.31006 9.89982 5.70006 10.2898L11.7001 16.2898C12.0901 16.6798 12.0901 17.3098 11.7001 17.6998L9.40006 19.9998C8.73006 20.6698 7.86006 20.9998 6.99006 20.9998H7.00006ZM5.00006 12.4098L3.41006 13.9998C3.14006 14.2698 3.00006 14.6198 3.00006 14.9898C3.00006 15.3598 3.14006 15.7198 3.41006 15.9798L6.01006 18.5798C6.55006 19.1298 7.44006 19.1298 7.99006 18.5798L9.59006 16.9798L5.00006 12.3898V12.4098Z"
-            fill="#71717A"
-          />
-          <path
-            d="M6.50006 13.4998C6.24006 13.4998 5.99006 13.3998 5.79006 13.2098C5.40006 12.8198 5.40006 12.1898 5.79006 11.7998L8.29006 9.29982C8.68006 8.90982 9.31006 8.90982 9.70006 9.29982C10.0901 9.68983 10.0901 10.3198 9.70006 10.7098L7.20006 13.2098C7.00006 13.4098 6.75006 13.4998 6.49006 13.4998H6.50006Z"
-            fill="#71717A"
-          />
-          <path
-            d="M9.50006 16.4998C9.24006 16.4998 8.99006 16.3998 8.79006 16.2098C8.40006 15.8198 8.40006 15.1898 8.79006 14.7998L11.2901 12.2998C11.6801 11.9098 12.3101 11.9098 12.7001 12.2998C13.0901 12.6898 13.0901 13.3198 12.7001 13.7098L10.2001 16.2098C10.0001 16.4098 9.75006 16.4998 9.49006 16.4998H9.50006Z"
-            fill="#71717A"
-          />
-          <path
-            d="M17.0001 11.9998C16.7401 11.9998 16.4901 11.8998 16.2901 11.7098L10.2901 5.70982C9.90006 5.31982 9.90006 4.68982 10.2901 4.29982L12.5901 1.99982C13.2401 1.34982 14.0901 0.999824 15.0001 0.999824C15.9101 0.999824 16.7601 1.35982 17.4001 1.99982L20.0001 4.59982C21.3301 5.93982 21.3301 8.08982 20.0001 9.41982L17.7001 11.7198C17.5001 11.9198 17.2501 12.0098 16.9901 12.0098L17.0001 11.9998ZM12.4101 4.99982L17.0001 9.58982L18.5901 7.99982C19.1401 7.44982 19.1401 6.56982 18.5901 6.01982L15.9901 3.41982C15.7201 3.14982 15.3701 3.00982 15.0001 3.00982C14.6301 3.00982 14.2801 3.15982 14.0101 3.41982L12.4101 5.01982V4.99982Z"
-            fill="#71717A"
-          />
-        </svg>
       </div>
       <div className="max-w-[832px] w-full px-4 pt-20 pb-8 flex flex-col flex-1 ">
         <div className="flex-1 overflow-y-auto space-y-6 px-2 mb-8">
@@ -512,180 +524,254 @@ export default function ChatPage() {
             <p className="text-center text-gray-500">هیچ پیامی یافت نشد.</p>
           )}
 
-          {messages.map((msg, index) => (
-            <div key={index} className="flex flex-col text-right">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center  text-xs font-medium">
-                  {msg.role === "user" ? (
-                    <svg
-                      width="36"
-                      height="36"
-                      viewBox="0 0 36 36"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M0 18C0 8.05888 8.05888 0 18 0C27.9411 0 36 8.05888 36 18C36 27.9411 27.9411 36 18 36C8.05888 36 0 27.9411 0 18Z"
-                        fill="#747375"
+          {messages.map((msg, index) => {
+            // Parse msg.content as JSON if it's assistant response
+            let responseData;
+            try {
+              responseData = JSON.parse(msg.content);
+            } catch {
+              responseData = {
+                model_response: msg.content,
+                generated_code: null,
+                plot_base64: null,
+              };
+            }
+
+            const { model_response, generated_code, plot_base64 } =
+              responseData;
+            const plotImageSrc = plot_base64
+              ? `data:image/png;base64,${plot_base64}`
+              : null;
+            const hasModelResponse =
+              model_response && model_response.trim() !== "";
+
+            return (
+              <div key={index} className="flex flex-col text-right">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center  text-xs font-medium">
+                    {msg.role === "user" ? (
+                      <UserA />
+                    ) : (
+                      <Logo height={80} width={80} />
+                    )}
+                  </div>
+                  <span className="text-sm font-semibold">
+                    {msg.role === "user" ? user : "دیتوپیا"}
+                  </span>
+                </div>
+
+                <div className="max-w-[90%] break-words px-3 py-2 text-sm rounded-lg">
+                  {editingIndex === index && msg.role === "user" ? (
+                    <>
+                      <textarea
+                        ref={editRef}
+                        value={editInput}
+                        onChange={(e) => setEditInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            handleConfirmEdit(index);
+                          }
+                        }}
+                        className="w-full min-h-9 px-2 py-2 text-sm border border-[#E4E4E7] rounded-lg resize-none overflow-auto text-right outline-none max-h-[200px]"
+                        autoFocus
                       />
-                      <path
-                        fillRule="evenodd"
-                        clipRule="evenodd"
-                        d="M18 11.3332C16.6193 11.3332 15.5 12.4525 15.5 13.8332C15.5 15.2139 16.6193 16.3332 18 16.3332C19.3807 16.3332 20.5 15.2139 20.5 13.8332C20.5 12.4525 19.3807 11.3332 18 11.3332ZM13.8333 13.8332C13.8333 11.532 15.6988 9.6665 18 9.6665C20.3012 9.6665 22.1667 11.532 22.1667 13.8332C22.1667 16.1344 20.3012 17.9999 18 17.9999C15.6988 17.9999 13.8333 16.1344 13.8333 13.8332ZM12.5537 20.887C13.3351 20.1056 14.3949 19.6666 15.5 19.6666H20.5C21.6051 19.6666 22.6649 20.1056 23.4463 20.887C24.2277 21.6684 24.6667 22.7282 24.6667 23.8333V25.5C24.6667 25.9602 24.2936 26.3333 23.8334 26.3333C23.3731 26.3333 23 25.9602 23 25.5V23.8333C23 23.1703 22.7366 22.5344 22.2678 22.0655C21.7989 21.5967 21.1631 21.3333 20.5 21.3333H15.5C14.8369 21.3333 14.201 21.5967 13.7322 22.0655C13.2633 22.5344 12.9999 23.1703 12.9999 23.8333V25.5C12.9999 25.9602 12.6268 26.3333 12.1666 26.3333C11.7064 26.3333 11.3333 25.9602 11.3333 25.5V23.8333C11.3333 22.7282 11.7722 21.6684 12.5537 20.887Z"
-                        fill="white"
-                      />
-                    </svg>
+                      <div className="flex gap-2 mt-2">
+                        <Button
+                          variant={"ghost"}
+                          onClick={handleCancelEdit}
+                          className="px-3 py-1 text-sm h-8 w-15"
+                        >
+                          انصراف
+                        </Button>
+                        <Button
+                          onClick={() => handleConfirmEdit(index)}
+                          className="px-3 py-1 text-sm h-8 w-15"
+                        >
+                          تایید
+                        </Button>
+                      </div>
+                    </>
                   ) : (
-                    <Logo height={80} width={80} />
+                    <>
+                      {hasModelResponse && (
+                        <ReactMarkdown
+                          rehypePlugins={[rehypeHighlight]}
+                          components={{
+                            p: ({ children }) => (
+                              <p className="text-sm leading-6 text-gray-800">
+                                {children}
+                              </p>
+                            ),
+                            code: ({ className, children, ...props }) => {
+                              const match = /language-(\w+)/.exec(
+                                className || ""
+                              );
+                              return match ? (
+                                <pre className="bg-[#2F2F2F] p-4 rounded-xl text-sm font-mono leading-relaxed text-white shadow-sm border border-[#3A3A3A]">
+                                  <code className={className} {...props}>
+                                    {children}
+                                  </code>
+                                </pre>
+                              ) : (
+                                <code
+                                  className="bg-[#E5E7EB] px-1.5 py-0.5 rounded-md text-sm font-mono text-gray-800"
+                                  {...props}
+                                >
+                                  {children}
+                                </code>
+                              );
+                            },
+                            h1: ({ children }) => (
+                              <h1 className="text-xl font-bold mt-4 mb-2 text-gray-900">
+                                {children}
+                              </h1>
+                            ),
+                            h2: ({ children }) => (
+                              <h2 className="text-lg font-semibold mt-3 mb-2 text-gray-900">
+                                {children}
+                              </h2>
+                            ),
+                            h3: ({ children }) => (
+                              <h3 className="text-base font-semibold mt-2 mb-1 text-gray-900">
+                                {children}
+                              </h3>
+                            ),
+                            ul: ({ children }) => (
+                              <ul className="list-disc list-inside text-sm text-gray-800 my-2">
+                                {children}
+                              </ul>
+                            ),
+                            ol: ({ children }) => (
+                              <ol className="list-decimal list-inside text-sm text-gray-800 my-2">
+                                {children}
+                              </ol>
+                            ),
+                            li: ({ children }) => (
+                              <li className="my-1">{children}</li>
+                            ),
+                            a: ({ href, children }) => (
+                              <a
+                                href={href}
+                                className="text-blue-600 hover:underline hover:text-blue-800"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                {children}
+                              </a>
+                            ),
+                          }}
+                        >
+                          {model_response}
+                        </ReactMarkdown>
+                      )}
+
+                      {generated_code && (
+                        <div className="mt-4 relative">
+                          <button
+                            onClick={() =>
+                              handleCopy(generated_code, index, true)
+                            }
+                            className={`absolute top-2 left-2 copy-button inline-flex items-center gap-1 opacity-90 hover:opacity-100 transition-all duration-200 ${
+                              copiedCodeIndex === index ? "copied" : ""
+                            }`}
+                            aria-label="کپی کد"
+                          >
+                            {copiedCodeIndex === index ? (
+                              <Check className="w-4 h-4 check-icon text-green-500" />
+                            ) : (
+                              <Copy
+                                className="w-4 h-4 cursor-pointer"
+                                color="gray"
+                              />
+                            )}
+                          </button>
+                          <ReactMarkdown
+                            rehypePlugins={[rehypeHighlight]}
+                            components={{
+                              code: ({ className, children, ...props }) => (
+                                <pre className="bg-[#2F2F2F] p-4 rounded-xl text-sm font-mono leading-relaxed text-white shadow-sm border border-[#3A3A3A] overflow-auto">
+                                  <code className={className} {...props}>
+                                    {children}
+                                  </code>
+                                </pre>
+                              ),
+                            }}
+                          >
+                            {`\`\`\`python\n${generated_code}\n\`\`\``}
+                          </ReactMarkdown>
+                        </div>
+                      )}
+
+                      {plotImageSrc && (
+                        <div className="mt-4 text-center flex  flex-col gap-4">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={plotImageSrc}
+                            alt="Generated Plot"
+                            className="max-w-full h-auto rounded-lg shadow-md"
+                          />
+
+                          <button
+                            onClick={() =>
+                              handleDownloadImage(
+                                plot_base64,
+                                `plot-${index}.png`
+                              )
+                            }
+                            className="  h-7 w-7 cursor-pointer self-end"
+                            aria-label="دانلود تصویر"
+                          >
+                            <Download className="w-4 h-4" color="gray" />
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
-                <span className="text-sm font-semibold">
-                  {msg.role === "user" ? user : "دیتوپیا"}
-                </span>
-              </div>
 
-              <div className="max-w-[90%] break-words px-3 py-2 text-sm rounded-lg">
-                {editingIndex === index && msg.role === "user" ? (
-                  <>
-                    <textarea
-                      ref={editRef}
-                      value={editInput}
-                      onChange={(e) => setEditInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          handleConfirmEdit(index);
-                        }
-                      }}
-                      className="w-full min-h-9 px-2 py-2 text-sm border border-[#E4E4E7] rounded-lg resize-none overflow-auto text-right outline-none max-h-[200px]"
-                      autoFocus
-                    />
-                    <div className="flex gap-2 mt-2">
-                      <Button
-                        variant={"ghost"}
-                        onClick={handleCancelEdit}
-                        className="px-3 py-1 text-sm h-8 w-15"
+                {!(editingIndex === index && msg.role === "user") && (
+                  <div className="flex items-center gap-4 mt-2 text-xs">
+                    <button
+                      onClick={() =>
+                        handleCopy(model_response || msg.content, index)
+                      }
+                      className={`copy-button inline-flex items-center gap-1 opacity-90 hover:opacity-100 transition-all duration-200 ${
+                        copiedIndex === index ? "copied" : ""
+                      }`}
+                      aria-label="کپی پیام"
+                    >
+                      {copiedIndex === index ? (
+                        <Check className="w-4 h-4 check-icon text-green-500" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </button>
+
+                    {msg.role === "user" && (
+                      <button
+                        onClick={() => handleEdit(index, msg.content)}
+                        className="inline-flex items-center gap-1 opacity-90 hover:opacity-100 transition-all duration-200"
+                        aria-label="ویرایش پیام"
                       >
-                        انصراف
-                      </Button>
-                      <Button
-                        onClick={() => handleConfirmEdit(index)}
-                        className="px-3 py-1 text-sm h-8 w-15"
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    )}
+
+                    {msg.role === "assistant" && (
+                      <button
+                        onClick={(e) => handleRefresh(index, e)}
+                        className="inline-flex items-center gap-1 opacity-90 hover:opacity-100 transition-all duration-200"
+                        aria-label="رفرش پیام"
                       >
-                        تایید
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <ReactMarkdown
-                    rehypePlugins={[rehypeHighlight]}
-                    components={{
-                      p: ({ children }) => (
-                        <p className="text-sm leading-6 text-gray-800">
-                          {children}
-                        </p>
-                      ),
-                      code: ({ className, children, ...props }) => {
-                        const match = /language-(\w+)/.exec(className || "");
-                        return match ? (
-                          <pre className="bg-[#2F2F2F] p-4 rounded-xl text-sm font-mono leading-relaxed text-white shadow-sm border border-[#3A3A3A]">
-                            <code className={className} {...props}>
-                              {children}
-                            </code>
-                          </pre>
-                        ) : (
-                          <code
-                            className="bg-[#E5E7EB] px-1.5 py-0.5 rounded-md text-sm font-mono text-gray-800"
-                            {...props}
-                          >
-                            {children}
-                          </code>
-                        );
-                      },
-                      h1: ({ children }) => (
-                        <h1 className="text-xl font-bold mt-4 mb-2 text-gray-900">
-                          {children}
-                        </h1>
-                      ),
-                      h2: ({ children }) => (
-                        <h2 className="text-lg font-semibold mt-3 mb-2 text-gray-900">
-                          {children}
-                        </h2>
-                      ),
-                      h3: ({ children }) => (
-                        <h3 className="text-base font-semibold mt-2 mb-1 text-gray-900">
-                          {children}
-                        </h3>
-                      ),
-                      ul: ({ children }) => (
-                        <ul className="list-disc list-inside text-sm text-gray-800 my-2">
-                          {children}
-                        </ul>
-                      ),
-                      ol: ({ children }) => (
-                        <ol className="list-decimal list-inside text-sm text-gray-800 my-2">
-                          {children}
-                        </ol>
-                      ),
-                      li: ({ children }) => (
-                        <li className="my-1">{children}</li>
-                      ),
-                      a: ({ href, children }) => (
-                        <a
-                          href={href}
-                          className="text-blue-600 hover:underline hover:text-blue-800"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {children}
-                        </a>
-                      ),
-                    }}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
-
-              {!(editingIndex === index && msg.role === "user") && (
-                <div className="flex items-center gap-4 mt-2 text-xs">
-                  <button
-                    onClick={() => handleCopy(msg.content, index)}
-                    className={`copy-button inline-flex items-center gap-1 opacity-90 hover:opacity-100 transition-all duration-200 ${
-                      copiedIndex === index ? "copied" : ""
-                    }`}
-                    aria-label="کپی پیام"
-                  >
-                    {copiedIndex === index ? (
-                      <Check className="w-4 h-4 check-icon text-green-500" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
-
-                  {msg.role === "user" && (
-                    <button
-                      onClick={() => handleEdit(index, msg.content)}
-                      className="inline-flex items-center gap-1 opacity-90 hover:opacity-100 transition-all duration-200"
-                      aria-label="ویرایش پیام"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                  )}
-
-                  {msg.role === "assistant" && (
-                    <button
-                      onClick={(e) => handleRefresh(index, e)}
-                      className="inline-flex items-center gap-1 opacity-90 hover:opacity-100 transition-all duration-200"
-                      aria-label="رفرش پیام"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
           {isLoading &&
             messages.length > 0 &&
             messages[messages.length - 1].role === "user" && (
