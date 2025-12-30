@@ -608,7 +608,10 @@ export default function ChatPage() {
                                 className || ""
                               );
                               return match ? (
-                                <pre className="bg-[#2F2F2F] p-4 rounded-xl text-sm font-mono leading-relaxed text-white shadow-sm border border-[#3A3A3A]">
+                                <pre
+                                  dir="ltr"
+                                  className="bg-[#2F2F2F] p-4 rounded-xl text-sm font-mono leading-relaxed text-white shadow-sm border border-[#3A3A3A] text-left"
+                                >
                                   <code className={className} {...props}>
                                     {children}
                                   </code>
@@ -667,18 +670,18 @@ export default function ChatPage() {
                       )}
 
                       {generated_code && (
-                        <div className="mt-4 relative">
+                        <div dir="ltr" className="mt-4 relative text-left">
                           <button
                             onClick={() =>
                               handleCopy(generated_code, index, true)
                             }
-                            className={`absolute top-2 left-2 copy-button inline-flex items-center gap-1 opacity-90 hover:opacity-100 transition-all duration-200 ${
+                            className={`absolute top-2 right-3 copy-button inline-flex items-center gap-1 opacity-90 hover:opacity-100 transition-all duration-200 ${
                               copiedCodeIndex === index ? "copied" : ""
                             }`}
                             aria-label="کپی کد"
                           >
                             {copiedCodeIndex === index ? (
-                              <Check className="w-4 h-4 check-icon text-green-500" />
+                              <Check className="w-4 h-4 check-icon " />
                             ) : (
                               <Copy
                                 className="w-4 h-4 cursor-pointer"

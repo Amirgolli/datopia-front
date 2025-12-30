@@ -89,3 +89,79 @@ html {
 body {
   @apply text-foreground;
 }
+
+/* ===== Code Highlight Custom Theme ===== */
+
+/* ===== Premium Cyber Dark Code Theme ===== */
+
+.hljs {
+  color: #e5e7eb;
+}
+
+/* Keywords */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in {
+  color: #efb325; /* brand gold */
+  font-weight: 500;
+}
+
+/* Functions & titles */
+.hljs-function,
+.hljs-title,
+.hljs-attr {
+  color: #38bdf8; /* neon blue */
+}
+
+/* Strings */
+.hljs-string,
+.hljs-template-string {
+  color: #4ade80; /* vivid green */
+}
+
+/* Numbers & literals */
+.hljs-number,
+.hljs-literal {
+  color: #fb7185; /* neon red/pink */
+}
+
+/* Params & variables */
+.hljs-params,
+.hljs-variable {
+  color: #a5b4fc; /* soft violet */
+}
+
+/* Comments */
+.hljs-comment,
+.hljs-quote {
+  color: #71717a;
+  font-style: italic;
+}
+
+/* Types & classes */
+.hljs-type,
+.hljs-class,
+.hljs-name {
+  color: #22d3ee; /* cyan */
+}
+
+/* Operators & punctuation */
+.hljs-operator,
+.hljs-punctuation {
+  color: #f8fafc;
+}
+
+/* Highlighted line (selection-like) */
+.hljs-emphasis {
+  background: rgba(239, 179, 37, 0.12);
+  font-style: normal;
+}
+
+/* Scrollbar inside code block */
+pre::-webkit-scrollbar {
+  height: 6px;
+}
+pre::-webkit-scrollbar-thumb {
+  background: #efb325;
+  border-radius: 6px;
+}
