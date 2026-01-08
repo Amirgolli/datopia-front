@@ -10,6 +10,7 @@ import {
   Check,
   Square,
   Download,
+  Loader2,
 } from "lucide-react";
 import { useEffect, useRef, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
@@ -26,25 +27,24 @@ interface Message {
 }
 
 const AGENT_STATUS_TEXTS = [
-  // ⏳ صمیمی و انسانی
   "یه لحظه ⏳",
   "اعداد دارن باهام حرف می‌زنن…",
   "کمی صبر کن… تحلیل خوب عجله‌ای درنمیاد 😉",
   "دارم الگوها رو شکار می‌کنم 🧠✨",
   "در حال جوش دادن داده‌ها…",
   "داده‌ها رفتن زیر ذره‌بین، نتیجه نزدیکه 🔍",
-
-  // 😎 کوتاه و مناسب اسپینر
   "تحلیل در جریانه…",
   "در حال رمزگشایی داده‌ها…",
   "دارم محاسبه می‌کنم…",
   "تقریباً آماده‌ایم…",
-
-  // 🤖 AI-محور
   "دیتوپیا مشغول فکر کردنه 🤖",
   "الگوریتم‌ها در حال کارن…",
   "نتایج هوشمند در راهه…",
 ];
+
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+const getToken = () => Cookies.get("access_token");
 
 export default function ChatPage() {
   const [agentStatusText, setAgentStatusText] = useState("");
@@ -63,7 +63,6 @@ export default function ChatPage() {
   const currentStreamInterval = useRef<NodeJS.Timeout | null>(null);
   const manuallyTriggeredRef = useRef(false);
   const [isMobile, setIsMobile] = useState(false);
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   const [credit, setCredit] = useState<number | null>(null);
   const [isCreditZeroModalOpen, setIsCreditZeroModalOpen] = useState(false);
@@ -76,14 +75,12 @@ export default function ChatPage() {
     const pickRandomText = () => {
       const available = AGENT_STATUS_TEXTS.filter((text) => text !== lastText);
       const selected = available[Math.floor(Math.random() * available.length)];
-
       lastText = selected;
       setAgentStatusText(selected);
     };
 
-    pickRandomText(); // اولین بار فوری
-    const interval = setInterval(pickRandomText, 2500);
-
+    pickRandomText();
+    const interval = setInterval(pickRandomText, 5500);
     return () => clearInterval(interval);
   }, [isLoading]);
 
@@ -103,14 +100,6 @@ export default function ChatPage() {
       setIsCreditZeroModalOpen(false);
     }
   };
-  const handleDownloadImage = (base64: string, filename = "image.png") => {
-    const link = document.createElement("a");
-    link.href = `data:image/png;base64,${base64}`;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   useEffect(() => {
     readCredit();
@@ -124,21 +113,22 @@ export default function ChatPage() {
 
   const remainderCredit = credit ?? 500;
 
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    setUser(Cookies.get("user_name") || "شما");
+  const handleDownloadImage = (base64: string, filename = "image.png") => {
+    const link = document.createElement("a");
+    link.href = `data:image/png;base64,${base64}`;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    setUser(Cookies.get("user_name") || "شما");
     checkMobile();
     window.addEventListener("resize", checkMobile);
-
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
-
-  const getToken = () => {
-    return Cookies.get("access_token");
-  };
 
   useEffect(() => {
     const loadMessages = async () => {
@@ -149,17 +139,27 @@ export default function ChatPage() {
           setMessages(parsed);
           return;
         } catch (error) {
-          console.error("Error parsing messages:", error);
+          console.error("Error parsing stored messages:", error);
         }
       }
 
       try {
+        const token = getToken();
+        if (!token) throw new Error("No auth token");
+
         const response = await fetch(
-          `${apiBaseUrl}/chat/get_history/${sessionId}`
+          `${apiBaseUrl}/chat/messages/${sessionId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
         );
+
         if (!response.ok) {
-          throw new Error(`API request failed with status ${response.status}`);
+          throw new Error(`API error: ${response.status}`);
         }
+
         const data = await response.json();
         const history = data.messages || [];
         setMessages(history);
@@ -171,7 +171,7 @@ export default function ChatPage() {
     };
 
     loadMessages();
-  }, [sessionId, apiBaseUrl]);
+  }, [sessionId]);
 
   const handleGetResponse = useCallback(
     async (content: string, refreshIndex?: number) => {
@@ -200,9 +200,7 @@ export default function ChatPage() {
 
       try {
         const token = getToken();
-        if (!token) {
-          throw new Error("No auth token found. Please log in again.");
-        }
+        if (!token) throw new Error("No auth token");
 
         const response = await fetch(`${apiBaseUrl}/chat/send_message`, {
           method: "POST",
@@ -217,15 +215,11 @@ export default function ChatPage() {
         });
 
         if (!response.ok) {
-          throw new Error(`API request failed with status ${response.status}`);
+          throw new Error(`API error: ${response.status}`);
         }
 
         const data = await response.json();
-
-        // Store the entire data as JSON string in content
         const assistantContent = JSON.stringify(data);
-
-        // For streaming, use model_response if available
         const streamText = data.model_response || "";
         const words = streamText.split(" ");
         let currentMessage = "";
@@ -247,7 +241,7 @@ export default function ChatPage() {
                   ...data,
                   model_response: currentMessage,
                 }),
-              } as Message,
+              },
             ]);
             wordIndex++;
           } else {
@@ -258,7 +252,7 @@ export default function ChatPage() {
             setIsLoading(false);
             const finalMessages: Message[] = [
               ...baseMessages,
-              { role: "assistant", content: assistantContent } as Message,
+              { role: "assistant", content: assistantContent },
             ];
             setMessages(finalMessages);
             localStorage.setItem(
@@ -273,13 +267,13 @@ export default function ChatPage() {
           ...prev,
           {
             role: "assistant",
-            content: "خطا در دریافت پاسخ از سرور! (احتمالاً مشکل احراز هویت)",
-          } as Message,
+            content: "خطا در دریافت پاسخ از سرور!",
+          },
         ]);
         setIsLoading(false);
       }
     },
-    [sessionId, apiBaseUrl]
+    [sessionId]
   );
 
   useEffect(() => {
@@ -318,10 +312,7 @@ export default function ChatPage() {
   const handleSubmit = async (e: React.FormEvent, refreshIndex?: number) => {
     e.preventDefault();
 
-    if (remainderCredit <= 0) {
-      console.warn("کاربر تلاش به ارسال پیام کرده اما اعتبار تمام شده.");
-      return;
-    }
+    if (remainderCredit <= 0) return;
 
     const trimmedInput = input.trim();
     if (!trimmedInput) return;
@@ -332,10 +323,7 @@ export default function ChatPage() {
     if (refreshIndex !== undefined) {
       newMessages = [...messages.slice(0, refreshIndex)];
     } else {
-      newMessages = [
-        ...messages,
-        { role: "user", content: trimmedInput } as Message,
-      ];
+      newMessages = [...messages, { role: "user", content: trimmedInput }];
     }
 
     manuallyTriggeredRef.current = true;
@@ -407,15 +395,8 @@ export default function ChatPage() {
 
     try {
       const token = getToken();
-      if (!token) {
-        throw new Error("No auth token found. Please log in again.");
-      }
+      if (!token) throw new Error("No auth token");
 
-      console.log("Sending to /chat/edit_message:", {
-        session_id: sessionId,
-        message_index: index,
-        new_content: trimmedInput,
-      });
       const response = await fetch(`${apiBaseUrl}/chat/edit_message`, {
         method: "POST",
         headers: {
@@ -428,8 +409,9 @@ export default function ChatPage() {
           new_content: trimmedInput,
         }),
       });
+
       if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
+        throw new Error(`Edit failed: ${response.status}`);
       }
 
       const data = await response.json();
@@ -443,10 +425,9 @@ export default function ChatPage() {
       ) {
         const assistantData = newMessages[newMessages.length - 1].content;
         if (typeof assistantData !== "string") {
-          throw new Error("Assistant response is not text");
+          throw new Error("Invalid assistant response");
         }
 
-        // Parse the JSON content
         let parsedData;
         try {
           parsedData = JSON.parse(assistantData);
@@ -494,8 +475,7 @@ export default function ChatPage() {
         ...prev,
         {
           role: "assistant",
-          content:
-            "خطا در ویرایش پیام و دریافت پاسخ! (احتمالاً مشکل احراز هویت)",
+          content: "خطا در ویرایش پیام و دریافت پاسخ!",
         },
       ]);
     } finally {
@@ -515,17 +495,18 @@ export default function ChatPage() {
 
   return (
     <main className="min-h-screen w-full flex flex-col items-center justify-between bg-background">
-      <div className="h-12 w-full fixed top-0 z-50 bg-white border-b md:hidden flex items-center  px-6">
+      <div className="absolute top-0 right-0">
         <SidebarTrigger />
       </div>
       <div className="max-w-[832px] w-full px-4 pt-20 pb-8 flex flex-col flex-1 ">
         <div className="flex-1 overflow-y-auto space-y-6 px-2 mb-8">
           {messages.length === 0 && (
-            <p className="text-center text-gray-500">هیچ پیامی یافت نشد.</p>
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="h-10 w-10 animate-spin text-yellow-500" />
+            </div>
           )}
 
           {messages.map((msg, index) => {
-            // Parse msg.content as JSON if it's assistant response
             let responseData;
             try {
               responseData = JSON.parse(msg.content);
@@ -707,14 +688,13 @@ export default function ChatPage() {
                       )}
 
                       {plotImageSrc && (
-                        <div className="mt-4 text-center flex  flex-col gap-4">
+                        <div className="mt-4 text-center flex flex-col gap-4">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={plotImageSrc}
                             alt="Generated Plot"
                             className="max-w-full h-auto rounded-lg shadow-md"
                           />
-
                           <button
                             onClick={() =>
                               handleDownloadImage(
@@ -722,7 +702,7 @@ export default function ChatPage() {
                                 `plot-${index}.png`
                               )
                             }
-                            className="  h-7 w-7 cursor-pointer self-end"
+                            className="h-7 w-7 cursor-pointer self-end"
                             aria-label="دانلود تصویر"
                           >
                             <Download className="w-4 h-4" color="gray" />
@@ -775,6 +755,7 @@ export default function ChatPage() {
               </div>
             );
           })}
+
           {isLoading &&
             messages.length > 0 &&
             messages[messages.length - 1].role === "user" && (

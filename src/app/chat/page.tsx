@@ -3,14 +3,13 @@
 import { useState, useRef, useEffect } from "react";
 import { CirclePlus, ArrowUp } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { v4 as uuidv4 } from "uuid";
+import Cookies from "js-cookie";
 import { Button } from "@/components/Button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
-interface ChatItem {
-  title: string;
-  sessionId: string;
-}
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+const getToken = () => Cookies.get("access_token");
 
 export default function Home() {
   const [message, setMessage] = useState("");
@@ -27,32 +26,23 @@ export default function Home() {
 
   useEffect(() => {
     const TITLES = [
-      // رسمی / راهنما محور
       "از داده‌هایتان چه می‌خواهید بفهمید؟",
       "تحلیل را به ما بسپارید",
       "سؤال تحلیلی‌تان درباره داده‌ها را بپرسید",
       "داده‌ها آماده‌اند؛ شما سؤال را بپرسید",
-
-      // 🤝 صمیمی و کاربرپسند
       "بگو با این داده‌ها چه‌کار کنیم؟",
       "می‌خواهی از این فایل چه چیزی دربیاید؟",
       "سؤالت درباره این داده‌ها چیست؟",
-
-      // 🚀 مدرن و محصول‌محور (استارتاپی)
       "داده‌ها را بده، بینش بگیر",
       "از فایل خام تا تحلیل قابل فهم",
       "تحلیل داده، فقط با یک سؤال",
-
-      // 🧠 هوشمند / AI-محور
       "داده‌هایت را بده، من تحلیلش می‌کنم",
       "با هوش مصنوعی، داده‌ها را بفهم",
       "سؤال بپرس، تحلیل بگیر",
     ];
 
     const lastTitle = localStorage.getItem("lastTitle");
-
     const availableTitles = TITLES.filter((title) => title !== lastTitle);
-
     const selected =
       availableTitles[Math.floor(Math.random() * availableTitles.length)];
 
@@ -76,6 +66,7 @@ export default function Home() {
       setIsCreditZeroModalOpen(false);
     }
   };
+
   useEffect(() => {
     readCredit();
     window.addEventListener("storage", readCredit);
@@ -89,13 +80,9 @@ export default function Home() {
   const remainderCredit = credit ?? 500;
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener("resize", checkMobile);
-
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
@@ -111,61 +98,56 @@ export default function Home() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     const trimmedMessage = message.trim();
+    if (!trimmedMessage) {
+      setError("پیام نمی‌تواند خالی باشد!");
+      return;
+    }
 
     if (remainderCredit <= 0) {
       setError("اعتبار شما به پایان رسیده و امکان ارسال پیام وجود ندارد.");
       return;
     }
 
-    if (!trimmedMessage) {
-      setError("پیام نمی‌تواند خالی باشد!");
-      return;
-    }
-
     setError("");
     setIsLoading(true);
 
-    const sessionId = uuidv4();
-    console.log("Generated sessionId:", sessionId);
-
     try {
-      const chatCounter =
-        parseInt(localStorage.getItem("chatCounter") || "0") + 1;
-      const title = `گفتگو ${chatCounter}`;
-      localStorage.setItem("chatCounter", chatCounter.toString());
+      const token = getToken();
+      if (!token) {
+        throw new Error("لطفاً دوباره وارد حساب کاربری شوید.");
+      }
 
-      const chatList: ChatItem[] = JSON.parse(
-        localStorage.getItem("chatList") || "[]"
-      );
-      chatList.unshift({ title, sessionId });
-      localStorage.setItem("chatList", JSON.stringify(chatList));
+      const response = await fetch(`${apiBaseUrl}/chat/send_message`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ content: trimmedMessage }),
+      });
 
-      window.dispatchEvent(new Event("chatListUpdated"));
+      if (!response.ok) {
+        throw new Error(`خطا در سرور: ${response.status}`);
+      }
 
-      localStorage.setItem(
-        `chat_${sessionId}`,
-        JSON.stringify([{ role: "user", content: trimmedMessage }])
-      );
+      const data = await response.json();
+      const newSessionId = data.session_id;
 
-      router.push(`/chat/${sessionId}`);
-    } catch (err) {
-      setError("خطا در ایجاد چت: " + (err as Error).message);
-      console.error("Error in handleSubmit:", err);
+      if (!newSessionId) {
+        throw new Error("شناسه گفتگو دریافت نشد.");
+      }
 
-      const chatList: ChatItem[] = JSON.parse(
-        localStorage.getItem("chatList") || "[]"
-      );
-      const updatedChatList = chatList.filter(
-        (chat) => chat.sessionId !== sessionId
-      );
-      localStorage.setItem("chatList", JSON.stringify(updatedChatList));
-      window.dispatchEvent(new Event("chatListUpdated"));
+      router.push(`/chat/${newSessionId}`);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "مشکل ناشناخته";
+      setError("خطا در ایجاد گفتگو: " + errorMessage);
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
   };
-  //test
 
   return (
     <main className="h-screen flex items-center justify-center overflow-hidden">
@@ -231,8 +213,8 @@ export default function Home() {
           <div className="relative bg-white rounded-lg p-6 max-w-sm w-[90%] z-60 shadow-lg text-right">
             <h3 className="text-lg font-semibold mb-2">اعتبار به پایان رسید</h3>
             <p className="text-sm text-gray-700 mb-4">
-              اعتبار شما به پایان رسید. تا زمان شارژ مجدد امکان ارسال پیام وجود
-              ندارد.
+              اعتبار شما به پایان رسیده است. تا زمان شارژ مجدد امکان ارسال پیام
+              وجود ندارد.
             </p>
             <div className="flex gap-2 justify-end">
               <button

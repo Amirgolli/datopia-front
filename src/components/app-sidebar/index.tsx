@@ -4,11 +4,11 @@ import {
   LogOut,
   MessageSquare,
   Settings,
-  Unplug,
   Trash,
   Plus,
   EllipsisVertical,
   Database,
+  PanelLeftOpen,
 } from "lucide-react";
 import Cookies from "js-cookie";
 import { Sidebar, SidebarContent } from "@/components/ui/sidebar";
@@ -41,10 +41,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/hooks/use-toast";
 import Logo from "../../../public/svg/Logo";
+import { useSidebar } from "@/components/ui/sidebar";
 
 interface ChatItem {
   title: string;
   sessionId: string;
+}
+
+interface Session {
+  created_at: string;
+  model: string;
+  session_id: string;
+  title: string;
+  updated_at: string;
 }
 
 export function AppSidebar() {
@@ -57,6 +66,8 @@ export function AppSidebar() {
   const editInputRef = useRef<HTMLInputElement>(null);
 
   const [credit, setCredit] = useState<number | null>(null);
+
+  const { toggleSidebar, setOpen, isMobile, open } = useSidebar();
 
   const maxCredit: number = 2000;
   const readCredit = useCallback(() => {
@@ -100,39 +111,108 @@ export function AppSidebar() {
           ),
         };
 
-  const loadChatList = useCallback(() => {
-    const storedChatList: ChatItem[] = JSON.parse(
-      localStorage.getItem("chatList") || "[]"
-    );
-    setChatList((prev) => {
-      if (JSON.stringify(prev) !== JSON.stringify(storedChatList)) {
-        return storedChatList;
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  const getToken = () => {
+    return Cookies.get("access_token");
+  };
+
+  const loadChatList = useCallback(async () => {
+    try {
+      const token = getToken();
+      if (!token) {
+        throw new Error("No auth token found. Please log in again.");
       }
-      return prev;
-    });
-  }, []);
+
+      const response = await fetch(`${apiBaseUrl}/chat/sessions`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      const sessions: Session[] = data.sessions || [];
+      const formattedChatList: ChatItem[] = sessions.map(
+        (session: Session) => ({
+          title: session.title || "Untitled Chat",
+          sessionId: session.session_id,
+        })
+      );
+
+      setChatList(formattedChatList);
+
+      localStorage.setItem("chatList", JSON.stringify(formattedChatList));
+    } catch (error) {
+      console.error("Error fetching sessions:", error);
+      const storedChatList: ChatItem[] = JSON.parse(
+        localStorage.getItem("chatList") || "[]"
+      );
+      setChatList(storedChatList);
+    }
+  }, [apiBaseUrl]);
 
   useEffect(() => {
     const email = Cookies.get("user_email");
     setUserEmail(email || "");
     loadChatList();
 
-    window.addEventListener("chatListUpdated", loadChatList);
+    window.addEventListener("chatListUpdated", loadChatList as EventListener);
     return () => {
-      window.removeEventListener("chatListUpdated", loadChatList);
+      window.removeEventListener(
+        "chatListUpdated",
+        loadChatList as EventListener
+      );
     };
   }, [loadChatList]);
 
   const handleDeleteChat = useCallback(
-    (index: number) => {
+    async (index: number) => {
       const sessionIdToDelete = chatList[index].sessionId;
-      const updatedList = chatList.filter((_, i) => i !== index);
-      localStorage.removeItem(`chat_${sessionIdToDelete}`);
-      localStorage.setItem("chatList", JSON.stringify(updatedList));
-      setChatList(updatedList);
-      window.dispatchEvent(new Event("chatListUpdated"));
+
+      try {
+        const token = getToken();
+        if (!token) {
+          throw new Error("No auth token found. Please log in again.");
+        }
+
+        const response = await fetch(
+          `${apiBaseUrl}/chat/sessions/${sessionIdToDelete}`,
+          {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Delete request failed with status ${response.status}`
+          );
+        }
+
+        const updatedList = chatList.filter((_, i) => i !== index);
+        setChatList(updatedList);
+        localStorage.setItem("chatList", JSON.stringify(updatedList));
+        window.dispatchEvent(new Event("chatListUpdated"));
+      } catch (error) {
+        console.error("Error deleting session:", error);
+        toast({
+          variant: "destructive",
+          description: "خطا در حذف گفتگو.",
+          duration: 3000,
+        });
+      }
     },
-    [chatList]
+    [chatList, apiBaseUrl]
   );
 
   const logoutAccount = () => {
@@ -152,19 +232,56 @@ export function AppSidebar() {
   }, []);
 
   const handleSaveEdit = useCallback(
-    (index: number) => {
+    async (index: number) => {
       if (editChatTitle.trim()) {
-        const updatedList = chatList.map((item, i) =>
-          i === index ? { ...item, title: editChatTitle } : item
-        );
-        localStorage.setItem("chatList", JSON.stringify(updatedList));
-        setChatList(updatedList);
-        window.dispatchEvent(new Event("chatListUpdated"));
+        const sessionId = chatList[index].sessionId;
+
+        try {
+          const token = getToken();
+          if (!token) {
+            throw new Error("No auth token found. Please log in again.");
+          }
+
+          // Assuming there's an edit endpoint like /chat/sessions/{sessionId}
+          // Body: { title: newTitle }
+          const response = await fetch(
+            `${apiBaseUrl}/chat/sessions/${sessionId}`,
+            {
+              method: "PUT", // or PATCH
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ title: editChatTitle }),
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(
+              `Edit request failed with status ${response.status}`
+            );
+          }
+
+          // Update local list
+          const updatedList = chatList.map((item, i) =>
+            i === index ? { ...item, title: editChatTitle } : item
+          );
+          setChatList(updatedList);
+          localStorage.setItem("chatList", JSON.stringify(updatedList));
+          window.dispatchEvent(new Event("chatListUpdated"));
+        } catch (error) {
+          console.error("Error editing session title:", error);
+          toast({
+            variant: "destructive",
+            description: "خطا در ویرایش عنوان گفتگو.",
+            duration: 3000,
+          });
+        }
       }
       setEditChatIndex(null);
       setEditChatTitle("");
     },
-    [editChatTitle, chatList]
+    [editChatTitle, chatList, apiBaseUrl]
   );
 
   const handleCancelEdit = useCallback(() => {
@@ -178,8 +295,6 @@ export function AppSidebar() {
     }
   }, [editChatIndex]);
 
-  const isConnectorsActive =
-    pathname === "/connectors" || pathname === "/connectors/*";
   const isKnowledgeActive = pathname === "/knowledge-base";
 
   const formatUSD = (n: number | null) => {
@@ -191,6 +306,14 @@ export function AppSidebar() {
     }).format(n);
   };
 
+  const closeSidebar = () => {
+    if (isMobile) {
+      toggleSidebar();
+    } else {
+      setOpen(false);
+    }
+  };
+
   return (
     <Sidebar
       side="right"
@@ -198,6 +321,17 @@ export function AppSidebar() {
     >
       <SidebarContent className="overflow-hidden">
         <div className="flex flex-col justify-between h-full">
+          <div className="flex justify-end p-2">
+            {open && (
+              <div
+                onClick={closeSidebar}
+                className="cursor-pointer absolute hidden md:block"
+              >
+                <PanelLeftOpen />
+              </div>
+            )}
+          </div>
+
           <div className="flex-1 max-h-full overflow-hidden">
             <div className="flex items-center gap-2 mt-5 mx-4">
               <Logo height={70} width={70} />
@@ -227,7 +361,7 @@ export function AppSidebar() {
                   <div className="flex flex-col mr-2 gap-3 border-r border-[#E4E4E7] pr-5">
                     {chatList.length === 0 && (
                       <p className="text-[#71717A] text-center">
-                        هیچ گفتگویی موجود نیست.
+                        در حال بارگذاری...
                       </p>
                     )}
                     {chatList.map((item, index) => (

@@ -162,11 +162,7 @@ const CheckEmail = () => {
         duration: 3000,
       });
 
-      if (result?.can_chat) {
-        router.push("/chat");
-      } else {
-        router.push("/waiting-list");
-      }
+      router.push("/chat");
     } catch (err: unknown) {
       const errorMsg =
         err instanceof Error ? err.message : "خطای ناشناخته در اعتبارسنجی کد";

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, VariantProps } from "class-variance-authority";
-import { Menu } from "lucide-react";
+import { PanelRightOpen, PanelLeftOpen } from "lucide-react";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -215,7 +215,7 @@ function Sidebar({
           <div className="flex h-full w-full flex-col">
             <div className="flex justify-end p-2">
               <div onClick={() => setOpenMobile(false)}>
-                <Close />
+                <PanelLeftOpen color="#2b2b2b" width={22} hanging={22} /> 
               </div>
             </div>
             {children}
@@ -286,15 +286,15 @@ function SidebarTrigger({
       data-slot="sidebar-trigger"
       variant="link"
       size="icon"
-      className={cn("size-10 h-11  md:hidden  z-10", className)}
+      className={cn("size-10 h-11  z-10", className)}
       onClick={(event) => {
         onClick?.(event);
         toggleSidebar();
       }}
       {...props}
     >
-      <div className="border px-1 py-0.5 rounded-sm">
-        <Menu />
+      <div className=" px-1 py-0.5 rounded-sm">
+        <PanelRightOpen color="#2b2b2b" width={22} height={22}/>
       </div>
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
@@ -327,6 +327,8 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
 }
 
 function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+  const { state, toggleSidebar, isMobile } = useSidebar();
+
   return (
     <main
       data-slot="sidebar-inset"
@@ -336,7 +338,19 @@ function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
         className
       )}
       {...props}
-    />
+    >
+      {state === "collapsed" && !isMobile && (
+        <Button
+          onClick={toggleSidebar}
+          variant="ghost"
+          size="icon"
+          className="fixed top-4 right-4 z-50"
+          aria-label="Open Sidebar"
+        >
+          <PanelRightOpen width={22} height={22} />
+        </Button>
+      )}
+    </main>
   );
 }
 

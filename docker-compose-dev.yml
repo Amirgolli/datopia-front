@@ -1,13 +1,24 @@
+version: "3.9"
+
 services:
   datopia-frontend-dev:
     image: amigolli/datopia-frontend-dev:latest
     container_name: datopia-frontend-dev
+    restart: always
     ports:
       - "8050:8050"
     networks:
       - datopia-net
+    # Add resource limits to prevent excessive resource consumption
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2G # 2 GB limit suitable for frontend
+        reservations:
+          memory: 512M
 
 networks:
   datopia-net:
-    name: datopia-net
     external: true
+    name: datopia-net

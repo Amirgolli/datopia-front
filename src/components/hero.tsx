@@ -6,7 +6,7 @@ import React from "react";
 
 const Hero = () => {
   return (
-    <div className="min-h-[calc(100vh-30rem)] flex flex-col items-center pt-20 px-6">
+    <div className="min-h-[calc(100vh-30rem)] flex flex-col items-center pt-7 px-6">
       <div className="md:mt-6 flex items-center justify-center">
         <div className="text-center max-w-2xl flex flex-col justify-center items-center">
           <Badge className="bg-[#E3EEFF] text-[#1668E3] rounded-full py-1 border-none">

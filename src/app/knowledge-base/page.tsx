@@ -522,10 +522,15 @@ function ConnectorsContent() {
 export default function Connectors() {
   return (
     <div className="h-screen flex">
+      <div className="hidden md:block absolute top-0 right-0">
+        <SidebarTrigger />
+      </div>
       <div className=" px-4 py-3 flex-1 flex flex-col">
         <div className="border-b border-slate-200 pb-1 mb-4 shrink-0">
           <div className="flex justify-between">
-            <SidebarTrigger />
+            <div className="md:hidden">
+              <SidebarTrigger />
+            </div>
             <h1 className=" text-[18px] md:text-[24px] mt-2 flex justify-end md:justify-start font-semibold">
               منابع دانش
             </h1>
